@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICF-SL Data Merger - Routine, Population & Shapefile Keys</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { margin: 0; padding: 20px; background-color: #ffffff; font-family: 'Oswald', Arial, sans-serif; color: #000000; font-weight: 500; }
+        .page-container { width: 100%; max-width: 1400px; margin: 0 auto; }
+        .page-header { background-color: #004080; color: #ffffff; padding: 25px 30px; text-align: center; margin-bottom: 15px; border-radius: 8px 8px 0 0; }
+        .logo-row { display: flex; justify-content: center; align-items: center; gap: 30px; margin-bottom: 15px; }
+        .logo-box { background: #ffffff; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: center; }
+        .logo-box img { width: 100px; height: auto; border-radius: 6px; }
+        .page-header h3 { margin: 12px 0 5px; font-size: 14px; font-weight: 700; letter-spacing: 1px; color: #ffffff; }
+        .page-header .tagline { margin: 0; font-size: 10px; font-weight: 500; color: #ffffff; }
+        .page-header h1 { margin: 20px 0 10px; font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: 1px; }
+        .page-header .subtitle { font-size: 14px; color: #ffffff; font-weight: 500; }
+        .content-card { border: 4px double #004080; border-radius: 12px; padding: 12px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin-bottom: 15px; }
+        .content-inner { padding: 25px; }
+        .upload-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin: 1.5rem 0; }
+        .upload-section { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 2px dashed #004080; text-align: center; transition: all 0.3s ease; }
+        .upload-section:hover { border-color: #0056b3; background: #e7f3ff; }
+        .upload-section.file-loaded { border-color: #28a745; border-style: solid; background: #d4edda; }
+        .upload-section h3 { color: #004080; margin-bottom: 0.5rem; font-size: 16px; font-weight: 700; }
+        .upload-section .file-label { color: #666; font-size: 12px; margin-bottom: 1rem; }
+        .upload-section p { color: #000000; font-weight: 500; font-size: 13px; }
+        .file-input-wrapper { position: relative; display: inline-block; cursor: pointer; background: #004080; color: white; padding: 12px 20px; border-radius: 6px; border: 2px solid #004080; font-size: 13px; font-weight: 700; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Oswald', Arial, sans-serif; margin-top: 0.75rem; }
+        .file-input-wrapper:hover { background: #0056b3; border-color: #0056b3; }
+        .file-input-wrapper input[type="file"] { position: absolute; left: -9999px; }
+        .file-input-wrapper.routine { background: #17a2b8; border-color: #17a2b8; }
+        .file-input-wrapper.routine:hover { background: #138496; border-color: #138496; }
+        .file-input-wrapper.population { background: #28a745; border-color: #28a745; }
+        .file-input-wrapper.population:hover { background: #218838; border-color: #218838; }
+        .file-input-wrapper.shapefile { background: #fd7e14; border-color: #fd7e14; }
+        .file-input-wrapper.shapefile:hover { background: #e96b02; border-color: #e96b02; }
+        .section-header { background-color: #004080; color: #ffffff; padding: 15px 20px; margin-bottom: 20px; border-radius: 6px; display: flex; align-items: center; gap: 15px; }
+        .section-icon { background: #ffffff; color: #004080; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; flex-shrink: 0; }
+        .section-title { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin: 1.5rem 0; }
+        .stats-card { background: #f8f9fa; padding: 1rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); text-align: center; border: 2px solid #004080; transition: all 0.2s; }
+        .stats-card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0, 64, 128, 0.2); }
+        .stats-card h4 { color: #666; font-size: 11px; margin-bottom: 0.5rem; text-transform: uppercase; }
+        .stats-card .metric-value { font-size: 1.6rem; color: #004080; margin-bottom: 0.25rem; font-weight: 700; }
+        .stats-card p { color: #666; font-size: 11px; }
+        .stats-card.success { border-color: #28a745; }
+        .stats-card.success .metric-value { color: #28a745; }
+        .stats-card.warning { border-color: #ffc107; }
+        .stats-card.warning .metric-value { color: #856404; }
+        .stats-card.info { border-color: #17a2b8; }
+        .stats-card.info .metric-value { color: #17a2b8; }
+        .btn { padding: 14px 24px; border: 2px solid #004080; border-radius: 6px; font-size: 14px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Oswald', Arial, sans-serif; transition: all 0.2s; margin: 5px; }
+        .btn-primary { background: #004080; color: #ffffff; }
+        .btn-primary:hover { background: #0056b3; border-color: #0056b3; }
+        .btn-secondary { background: #ffffff; color: #004080; }
+        .btn-secondary:hover { background: #004080; color: #ffffff; }
+        .btn-gold { background: #ffc107; color: #000000; border-color: #ffc107; }
+        .btn-gold:hover { background: #e0a800; border-color: #e0a800; }
+        .btn-success { background: #28a745; color: #ffffff; border-color: #28a745; }
+        .btn-success:hover { background: #218838; border-color: #218838; }
+        .btn:disabled { background: #6c757d; border-color: #6c757d; color: #ffffff; cursor: not-allowed; opacity: 0.6; }
+        .alert { padding: 1rem; border-radius: 6px; margin: 1rem 0; font-weight: 500; }
+        .alert-success { background: #d4edda; border: 2px solid #28a745; color: #155724; }
+        .alert-error { background: #f8d7da; border: 2px solid #dc3545; color: #721c24; }
+        .alert-warning { background: #fff3cd; border: 2px solid #ffc107; color: #856404; }
+        .alert-info { background: #e7f3ff; border: 2px solid #004080; color: #004080; }
+        .hidden { display: none !important; }
+        .config-card { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 2px solid #004080; margin: 1rem 0; }
+        .config-card h4 { color: #004080; margin-bottom: 1rem; font-size: 16px; font-weight: 700; }
+        .checkbox-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; max-height: 200px; overflow-y: auto; padding: 1rem; border: 2px solid #004080; border-radius: 6px; background: #ffffff; }
+        .checkbox-item { display: flex; align-items: center; padding: 0.5rem 0.75rem; cursor: pointer; border-radius: 4px; transition: background-color 0.2s ease; color: #000000; font-size: 13px; }
+        .checkbox-item:hover { background: #e7f3ff; }
+        .checkbox-item input { margin-right: 0.5rem; accent-color: #004080; width: 16px; height: 16px; }
+        .loading-spinner { border: 4px solid #e7f3ff; border-top: 4px solid #004080; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
+        .feature-card { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 2px solid #004080; }
+        .feature-card h4 { color: #004080; margin-bottom: 1rem; font-size: 16px; font-weight: 700; text-transform: uppercase; }
+        .feature-card ol, .feature-card ul { color: #000000; line-height: 1.8; padding-left: 1.5rem; }
+        .feature-card li { margin-bottom: 0.5rem; font-weight: 500; font-size: 13px; }
+        .feature-card strong { color: #004080; }
+        .page-footer { background-color: #004080; color: #ffffff; padding: 20px 30px; text-align: center; font-size: 13px; line-height: 1.7; font-weight: 500; border-radius: 0 0 8px 8px; }
+        .page-footer p { margin: 6px 0 0; font-size: 12px; color: #ffffff; }
+        .file-info { background: #d4edda; border: 2px solid #28a745; padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem; text-align: left; }
+        .file-info h5 { color: #155724; margin-bottom: 0.25rem; font-size: 12px; }
+        .file-info p { color: #155724; font-size: 11px; margin: 0.15rem 0; }
+        .column-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin: 1.5rem 0; }
+        .column-group { background: #f8f9fa; padding: 1rem; border-radius: 8px; border: 2px solid #004080; }
+        .column-group h4 { color: #004080; margin-bottom: 0.75rem; font-size: 14px; font-weight: 700; }
+        .column-group.routine { border-color: #17a2b8; }
+        .column-group.routine h4 { color: #17a2b8; }
+        .column-group.population { border-color: #28a745; }
+        .column-group.population h4 { color: #28a745; }
+        .column-group.shapefile { border-color: #fd7e14; }
+        .column-group.shapefile h4 { color: #fd7e14; }
+        .selected-cols { margin-top: 8px; padding: 8px; background: #e7f3ff; border-radius: 4px; font-size: 11px; }
+        .merge-order { background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+        .merge-order h4 { color: #856404; margin-bottom: 0.5rem; font-size: 14px; }
+        .merge-order p { color: #856404; font-size: 12px; }
+        .preview-table { max-height: 300px; overflow: auto; border-radius: 6px; margin: 1rem 0; border: 2px solid #004080; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th { background: #004080; color: #ffffff; padding: 0.5rem; text-align: left; position: sticky; top: 0; font-weight: 700; white-space: nowrap; }
+        td { padding: 0.5rem; border-bottom: 1px solid #ddd; white-space: nowrap; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        tr:hover { background: #e7f3ff; }
+        .download-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 1.5rem 0; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f8f9fa; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #004080; border-radius: 4px; }
+        @media (max-width: 992px) { .upload-grid, .column-selector { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { body { padding: 10px; } .content-inner { padding: 15px; } .page-header h1 { font-size: 20px; } }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="page-header">
+            <div class="logo-row">
+                <div class="logo-box">
+                    <img src="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg" alt="ICF-SL Logo">
+                </div>
+            </div>
+            <h3>Informatics Consultancy Firm-Sierra Leone<br>(ICF-SL)</h3>
+            <p class="tagline"><em>Driving Data-Driven Solutions for Health and Development</em></p>
+            <h1>DATA MERGER TOOL</h1>
+            <p class="subtitle">Merge Routine Data, Population Data & Shapefile Keys into One Dataset</p>
+        </div>
+
+        <div class="content-card">
+            <div class="content-inner">
+                <div id="alertContainer"></div>
+
+                <!-- Upload Section -->
+                <div id="uploadSection">
+                    <div class="section-header">
+                        <span class="section-icon">📁</span>
+                        <span class="section-title">UPLOAD YOUR FILES</span>
+                    </div>
+
+                    <div class="upload-grid">
+                        <div class="upload-section" id="uploadRoutine">
+                            <h3>📊 ROUTINE DATA</h3>
+                            <p class="file-label">Clean routine/surveillance data</p>
+                            <p>Cases, tests, dates by location</p>
+                            <label class="file-input-wrapper routine">
+                                Choose Routine File
+                                <input type="file" id="routineFileInput" accept=".csv,.xlsx,.xls">
+                            </label>
+                            <div id="routineFileInfo" class="hidden"></div>
+                        </div>
+                        
+                        <div class="upload-section" id="uploadPopulation">
+                            <h3>👥 POPULATION DATA</h3>
+                            <p class="file-label">Population estimates by location</p>
+                            <p>Population figures for rate calculations</p>
+                            <label class="file-input-wrapper population">
+                                Choose Population File
+                                <input type="file" id="populationFileInput" accept=".csv,.xlsx,.xls">
+                            </label>
+                            <div id="populationFileInfo" class="hidden"></div>
+                        </div>
+                        
+                        <div class="upload-section" id="uploadShapefile">
+                            <h3>🗺️ SHAPEFILE KEYS</h3>
+                            <p class="file-label">Location key/lookup table</p>
+                            <p>Standard names for geographic merge</p>
+                            <label class="file-input-wrapper shapefile">
+                                Choose Shapefile Keys
+                                <input type="file" id="shapefileKeyInput" accept=".csv,.xlsx,.xls">
+                            </label>
+                            <div id="shapefileKeyInfo" class="hidden"></div>
+                        </div>
+                    </div>
+
+                    <div id="loading" class="hidden" style="text-align: center; padding: 2rem;">
+                        <div class="loading-spinner"></div>
+                        <p id="loadingText" style="color: #004080; font-weight: 700;">Processing files...</p>
+                    </div>
+
+                    <div class="section-header" style="margin-top: 2rem;">
+                        <span class="section-icon">?</span>
+                        <span class="section-title">HOW IT WORKS</span>
+                    </div>
+                    
+                    <div class="feature-grid">
+                        <div class="feature-card">
+                            <h4>1. Upload Three Files</h4>
+                            <ul>
+                                <li><strong>Routine:</strong> Surveillance/case data</li>
+                                <li><strong>Population:</strong> Population estimates</li>
+                                <li><strong>Shapefile Keys:</strong> Standard location names</li>
+                            </ul>
+                        </div>
+                        <div class="feature-card">
+                            <h4>2. Select Merge Keys</h4>
+                            <ul>
+                                <li><strong>Match columns:</strong> Location identifiers</li>
+                                <li><strong>Order matters:</strong> District → Chiefdom</li>
+                                <li><strong>Exact match:</strong> Values must be identical</li>
+                            </ul>
+                        </div>
+                        <div class="feature-card">
+                            <h4>3. Merge & Download</h4>
+                            <ul>
+                                <li><strong>Left join:</strong> Keeps all routine data</li>
+                                <li><strong>Adds:</strong> Population & shapefile keys</li>
+                                <li><strong>Export:</strong> Excel or CSV format</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column Selection Section -->
+                <div id="columnSelection" class="hidden">
+                    <div class="section-header">
+                        <span class="section-icon">🔑</span>
+                        <span class="section-title">SELECT MERGE KEYS</span>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>How it works:</strong> Select columns from each file that contain matching location identifiers. 
+                        Select columns in the SAME ORDER across all files (e.g., District first, then Chiefdom).
+                        The merge will match rows where these columns have identical values.
+                    </div>
+
+                    <div class="merge-order">
+                        <h4>📋 Merge Process</h4>
+                        <p><strong>Step 1:</strong> Routine Data + Population Data → Intermediate Result</p>
+                        <p><strong>Step 2:</strong> Intermediate Result + Shapefile Keys → Final Merged Dataset</p>
+                    </div>
+
+                    <div class="column-selector">
+                        <div class="column-group routine">
+                            <h4>📊 Routine Data Columns</h4>
+                            <div class="checkbox-group" id="routineColumns"></div>
+                            <div class="selected-cols">
+                                <strong>Selected:</strong> <span id="routineColsList">None</span>
+                            </div>
+                        </div>
+                        
+                        <div class="column-group population">
+                            <h4>👥 Population Data Columns</h4>
+                            <div class="checkbox-group" id="populationColumns"></div>
+                            <div class="selected-cols">
+                                <strong>Selected:</strong> <span id="populationColsList">None</span>
+                            </div>
+                        </div>
+                        
+                        <div class="column-group shapefile">
+                            <h4>🗺️ Shapefile Key Columns</h4>
+                            <div class="checkbox-group" id="shapefileColumns"></div>
+                            <div class="selected-cols">
+                                <strong>Selected:</strong> <span id="shapefileColsList">None</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="mergePreview" class="hidden config-card">
+                        <h4>Merge Preview</h4>
+                        <div id="mergePreviewContent"></div>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 1.5rem;">
+                        <button class="btn btn-secondary" onclick="previewMerge()">👁️ Preview Merge</button>
+                        <button id="mergeBtn" class="btn btn-gold" disabled onclick="performMerge()">🔗 Merge All Files</button>
+                        <button class="btn btn-secondary" onclick="resetApplication()">🔄 Start Over</button>
+                    </div>
+                </div>
+
+                <!-- Merge Results Section -->
+                <div id="mergeResults" class="hidden">
+                    <div class="section-header">
+                        <span class="section-icon">✓</span>
+                        <span class="section-title">MERGE RESULTS</span>
+                    </div>
+
+                    <div class="stats-grid" id="mergeStats"></div>
+
+                    <div class="config-card">
+                        <h4>Merged Data Preview</h4>
+                        <div id="resultPreview" class="preview-table"></div>
+                    </div>
+
+                    <div class="download-buttons">
+                        <button class="btn btn-success" onclick="downloadMerged('xlsx')">📥 Download Excel (.xlsx)</button>
+                        <button class="btn btn-primary" onclick="downloadMerged('csv')">📥 Download CSV (.csv)</button>
+                        <button class="btn btn-secondary" onclick="downloadUnmatched()">⚠️ Download Unmatched Records</button>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="backToConfig()">Change Settings</button>
+                        <button class="btn btn-secondary" onclick="resetApplication()">🔄 Start Over</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page-footer">
+            <p style="margin: 0; font-weight: 700;">National Malaria Control Programme</p>
+            <p>Ministry of Health and Sanitation, Sierra Leone</p>
+            <p style="font-size: 10px;">© 2025 Informatics Consultancy Firm-Sierra Leone (ICF-SL)</p>
+        </div>
+    </div>
+
+    <script>
+        let routineData = null, populationData = null, shapefileData = null;
+        let routineKeys = [], populationKeys = [], shapefileKeys = [];
+        let mergedData = [], unmatchedData = [];
+
+        document.getElementById('routineFileInput').addEventListener('change', e => handleFileUpload(e, 'routine'));
+        document.getElementById('populationFileInput').addEventListener('change', e => handleFileUpload(e, 'population'));
+        document.getElementById('shapefileKeyInput').addEventListener('change', e => handleFileUpload(e, 'shapefile'));
+
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            if (type === 'success') setTimeout(() => container.innerHTML = '', 5000);
+        }
+
+        function showLoading(show, message = 'Processing...') {
+            const loading = document.getElementById('loading');
+            document.getElementById('loadingText').textContent = message;
+            loading.classList.toggle('hidden', !show);
+        }
+
+        async function handleFileUpload(event, fileType) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading(true, `Processing ${fileType} file...`);
+
+            try {
+                const data = await readFile(file);
+                
+                if (fileType === 'routine') {
+                    routineData = data;
+                    displayFileInfo(file, data, 'routine');
+                    document.getElementById('uploadRoutine').classList.add('file-loaded');
+                } else if (fileType === 'population') {
+                    populationData = data;
+                    displayFileInfo(file, data, 'population');
+                    document.getElementById('uploadPopulation').classList.add('file-loaded');
+                } else {
+                    shapefileData = data;
+                    displayFileInfo(file, data, 'shapefile');
+                    document.getElementById('uploadShapefile').classList.add('file-loaded');
+                }
+
+                checkAllFilesLoaded();
+            } catch (error) {
+                showAlert(`Error reading ${fileType} file: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const ext = file.name.toLowerCase().split('.').pop();
+                const reader = new FileReader();
+
+                reader.onload = e => {
+                    try {
+                        let data;
+                        if (ext === 'csv') {
+                            data = Papa.parse(e.target.result, { header: true, skipEmptyLines: true, dynamicTyping: true }).data;
+                        } else if (ext === 'xlsx' || ext === 'xls') {
+                            const wb = XLSX.read(e.target.result, { type: 'array' });
+                            data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                        } else {
+                            reject(new Error(`Unsupported: ${ext}`));
+                            return;
+                        }
+                        const cleaned = cleanData(data);
+                        resolve({ name: file.name, data: cleaned, columns: Object.keys(cleaned[0] || {}), rowCount: cleaned.length });
+                    } catch (error) { reject(error); }
+                };
+
+                reader.onerror = () => reject(new Error('Error reading file'));
+                ext === 'csv' ? reader.readAsText(file) : reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function cleanData(data) {
+            if (!data || data.length === 0) return [];
+            const firstKey = Object.keys(data[0] || {})[0];
+            return data.filter(row => {
+                const val = row[firstKey];
+                return val !== null && val !== undefined && String(val).trim() !== '';
+            }).map(row => {
+                const clean = {};
+                Object.keys(row).forEach(key => {
+                    const k = String(key).trim();
+                    if (!k.toLowerCase().startsWith('unnamed') && k !== 'null' && k !== '') clean[k] = row[key];
+                });
+                return clean;
+            }).filter(row => Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== ''));
+        }
+
+        function displayFileInfo(file, data, type) {
+            const infoId = type === 'routine' ? 'routineFileInfo' : type === 'population' ? 'populationFileInfo' : 'shapefileKeyInfo';
+            const info = document.getElementById(infoId);
+            info.innerHTML = `<div class="file-info"><h5>✓ ${file.name}</h5><p><strong>Rows:</strong> ${data.rowCount} | <strong>Cols:</strong> ${data.columns.length}</p><p style="font-size:10px;">${data.columns.slice(0, 4).join(', ')}${data.columns.length > 4 ? '...' : ''}</p></div>`;
+            info.classList.remove('hidden');
+        }
+
+        function checkAllFilesLoaded() {
+            if (routineData && populationData && shapefileData) {
+                showAlert('All files loaded! Select merge keys below.', 'success');
+                displayColumnSelection();
+            }
+        }
+
+        function displayColumnSelection() {
+            document.getElementById('routineColumns').innerHTML = routineData.columns.map(col => 
+                `<label class="checkbox-item"><input type="checkbox" value="${col}" onchange="updateKeys('routine', '${col}', this.checked)"><span>${col}</span></label>`
+            ).join('');
+            
+            document.getElementById('populationColumns').innerHTML = populationData.columns.map(col => 
+                `<label class="checkbox-item"><input type="checkbox" value="${col}" onchange="updateKeys('population', '${col}', this.checked)"><span>${col}</span></label>`
+            ).join('');
+            
+            document.getElementById('shapefileColumns').innerHTML = shapefileData.columns.map(col => 
+                `<label class="checkbox-item"><input type="checkbox" value="${col}" onchange="updateKeys('shapefile', '${col}', this.checked)"><span>${col}</span></label>`
+            ).join('');
+
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('columnSelection').classList.remove('hidden');
+        }
+
+        function updateKeys(fileType, col, checked) {
+            let keys;
+            if (fileType === 'routine') keys = routineKeys;
+            else if (fileType === 'population') keys = populationKeys;
+            else keys = shapefileKeys;
+
+            if (checked) { if (!keys.includes(col)) keys.push(col); }
+            else { const idx = keys.indexOf(col); if (idx > -1) keys.splice(idx, 1); }
+
+            document.getElementById(`${fileType}ColsList`).textContent = keys.length ? keys.join(' → ') : 'None';
+            
+            // Enable merge button if all have at least one key
+            document.getElementById('mergeBtn').disabled = !(routineKeys.length > 0 && populationKeys.length > 0 && shapefileKeys.length > 0);
+        }
+
+        function previewMerge() {
+            if (routineKeys.length === 0 || populationKeys.length === 0 || shapefileKeys.length === 0) {
+                showAlert('Please select at least one key from each file', 'error');
+                return;
+            }
+
+            const minKeys = Math.min(routineKeys.length, populationKeys.length, shapefileKeys.length);
+            
+            // Get unique keys from each dataset
+            const routineUniqueKeys = new Set(routineData.data.map(row => 
+                routineKeys.slice(0, minKeys).map(k => String(row[k] || '').trim().toLowerCase()).join('||')
+            ));
+            
+            const populationUniqueKeys = new Set(populationData.data.map(row => 
+                populationKeys.slice(0, minKeys).map(k => String(row[k] || '').trim().toLowerCase()).join('||')
+            ));
+            
+            const shapefileUniqueKeys = new Set(shapefileData.data.map(row => 
+                shapefileKeys.slice(0, minKeys).map(k => String(row[k] || '').trim().toLowerCase()).join('||')
+            ));
+
+            // Calculate matches
+            const routinePopMatch = [...routineUniqueKeys].filter(k => populationUniqueKeys.has(k)).length;
+            const allMatch = [...routineUniqueKeys].filter(k => populationUniqueKeys.has(k) && shapefileUniqueKeys.has(k)).length;
+
+            document.getElementById('mergePreviewContent').innerHTML = `
+                <div class="stats-grid">
+                    <div class="stats-card info"><div class="metric-value">${routineUniqueKeys.size}</div><p>Routine Locations</p></div>
+                    <div class="stats-card info"><div class="metric-value">${populationUniqueKeys.size}</div><p>Population Locations</p></div>
+                    <div class="stats-card info"><div class="metric-value">${shapefileUniqueKeys.size}</div><p>Shapefile Locations</p></div>
+                    <div class="stats-card success"><div class="metric-value">${routinePopMatch}</div><p>Routine ↔ Population Match</p></div>
+                    <div class="stats-card success"><div class="metric-value">${allMatch}</div><p>All Three Match</p></div>
+                    <div class="stats-card warning"><div class="metric-value">${routineUniqueKeys.size - allMatch}</div><p>Routine Only (unmatched)</p></div>
+                </div>
+            `;
+            document.getElementById('mergePreview').classList.remove('hidden');
+        }
+
+        function performMerge() {
+            if (routineKeys.length === 0 || populationKeys.length === 0 || shapefileKeys.length === 0) {
+                showAlert('Please select merge keys from all files', 'error');
+                return;
+            }
+
+            showLoading(true, 'Merging files...');
+
+            try {
+                const minKeys = Math.min(routineKeys.length, populationKeys.length, shapefileKeys.length);
+                const rKeys = routineKeys.slice(0, minKeys);
+                const pKeys = populationKeys.slice(0, minKeys);
+                const sKeys = shapefileKeys.slice(0, minKeys);
+
+                // Build lookup maps
+                const populationMap = new Map();
+                populationData.data.forEach(row => {
+                    const key = pKeys.map(k => String(row[k] || '').trim().toLowerCase()).join('||');
+                    if (!populationMap.has(key)) populationMap.set(key, row);
+                });
+
+                const shapefileMap = new Map();
+                shapefileData.data.forEach(row => {
+                    const key = sKeys.map(k => String(row[k] || '').trim().toLowerCase()).join('||');
+                    if (!shapefileMap.has(key)) shapefileMap.set(key, row);
+                });
+
+                // Perform left join from routine data
+                mergedData = [];
+                unmatchedData = [];
+
+                routineData.data.forEach(routineRow => {
+                    const key = rKeys.map(k => String(routineRow[k] || '').trim().toLowerCase()).join('||');
+                    
+                    const popRow = populationMap.get(key) || {};
+                    const shapeRow = shapefileMap.get(key) || {};
+
+                    // Merge all columns, prefixing duplicates
+                    const merged = { ...routineRow };
+                    
+                    // Add population columns (prefix if duplicate)
+                    Object.keys(popRow).forEach(col => {
+                        if (pKeys.includes(col)) return; // Skip key columns
+                        const newCol = merged.hasOwnProperty(col) ? `pop_${col}` : col;
+                        merged[newCol] = popRow[col];
+                    });
+
+                    // Add shapefile columns (prefix if duplicate)
+                    Object.keys(shapeRow).forEach(col => {
+                        if (sKeys.includes(col)) return; // Skip key columns
+                        let newCol = col;
+                        if (merged.hasOwnProperty(col)) newCol = `shp_${col}`;
+                        if (merged.hasOwnProperty(newCol)) newCol = `shp2_${col}`;
+                        merged[newCol] = shapeRow[col];
+                    });
+
+                    // Track match status
+                    merged._pop_matched = Object.keys(popRow).length > 0 ? 'Yes' : 'No';
+                    merged._shp_matched = Object.keys(shapeRow).length > 0 ? 'Yes' : 'No';
+
+                    mergedData.push(merged);
+
+                    if (Object.keys(popRow).length === 0 || Object.keys(shapeRow).length === 0) {
+                        unmatchedData.push(merged);
+                    }
+                });
+
+                displayMergeResults();
+                showAlert(`Merge complete! ${mergedData.length} total records, ${unmatchedData.length} with missing matches.`, 'success');
+            } catch (error) {
+                showAlert('Error during merge: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayMergeResults() {
+            const fullyMatched = mergedData.filter(r => r._pop_matched === 'Yes' && r._shp_matched === 'Yes').length;
+            const popMatched = mergedData.filter(r => r._pop_matched === 'Yes').length;
+            const shpMatched = mergedData.filter(r => r._shp_matched === 'Yes').length;
+
+            document.getElementById('mergeStats').innerHTML = `
+                <div class="stats-card"><div class="metric-value">${mergedData.length}</div><p>Total Records</p></div>
+                <div class="stats-card success"><div class="metric-value">${fullyMatched}</div><p>Fully Matched</p></div>
+                <div class="stats-card info"><div class="metric-value">${popMatched}</div><p>Population Matched</p></div>
+                <div class="stats-card info"><div class="metric-value">${shpMatched}</div><p>Shapefile Matched</p></div>
+                <div class="stats-card warning"><div class="metric-value">${unmatchedData.length}</div><p>Partial/No Match</p></div>
+                <div class="stats-card"><div class="metric-value">${Object.keys(mergedData[0] || {}).length}</div><p>Total Columns</p></div>
+            `;
+
+            // Display preview
+            const preview = mergedData.slice(0, 10);
+            const cols = Object.keys(preview[0] || {});
+            document.getElementById('resultPreview').innerHTML = `
+                <table>
+                    <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+                    <tbody>${preview.map(row => `<tr>${cols.map(c => `<td>${row[c] !== undefined && row[c] !== null ? row[c] : ''}</td>`).join('')}</tr>`).join('')}</tbody>
+                </table>
+                <p style="text-align:center;color:#666;font-size:11px;padding:0.5rem;">Showing ${preview.length} of ${mergedData.length} records</p>
+            `;
+
+            document.getElementById('columnSelection').classList.add('hidden');
+            document.getElementById('mergeResults').classList.remove('hidden');
+        }
+
+        function downloadMerged(format) {
+            if (!mergedData.length) { showAlert('No data to download', 'warning'); return; }
+
+            const timestamp = new Date().toISOString().slice(0, 10);
+            
+            if (format === 'xlsx') {
+                const ws = XLSX.utils.json_to_sheet(mergedData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Merged Data');
+                XLSX.writeFile(wb, `merged_data_${timestamp}.xlsx`);
+            } else {
+                const headers = Object.keys(mergedData[0]);
+                const csv = [headers.join(','), ...mergedData.map(row => headers.map(h => {
+                    let v = row[h] !== undefined && row[h] !== null ? row[h] : '';
+                    if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) v = '"' + v.replace(/"/g, '""') + '"';
+                    return v;
+                }).join(','))].join('\n');
+                
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `merged_data_${timestamp}.csv`;
+                link.click();
+            }
+            showAlert(`Downloaded merged data (${mergedData.length} rows)`, 'success');
+        }
+
+        function downloadUnmatched() {
+            if (!unmatchedData.length) { showAlert('No unmatched records', 'info'); return; }
+
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const headers = Object.keys(unmatchedData[0]);
+            const csv = [headers.join(','), ...unmatchedData.map(row => headers.map(h => {
+                let v = row[h] !== undefined && row[h] !== null ? row[h] : '';
+                if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) v = '"' + v.replace(/"/g, '""') + '"';
+                return v;
+            }).join(','))].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `unmatched_records_${timestamp}.csv`;
+            link.click();
+            showAlert(`Downloaded unmatched records (${unmatchedData.length} rows)`, 'success');
+        }
+
+        function backToConfig() {
+            document.getElementById('mergeResults').classList.add('hidden');
+            document.getElementById('columnSelection').classList.remove('hidden');
+        }
+
+        function resetApplication() {
+            routineData = populationData = shapefileData = null;
+            routineKeys = []; populationKeys = []; shapefileKeys = [];
+            mergedData = []; unmatchedData = [];
+
+            ['routineFileInput', 'populationFileInput', 'shapefileKeyInput'].forEach(id => document.getElementById(id).value = '');
+            ['routineFileInfo', 'populationFileInfo', 'shapefileKeyInfo'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            ['uploadRoutine', 'uploadPopulation', 'uploadShapefile'].forEach(id => document.getElementById(id).classList.remove('file-loaded'));
+            ['routineColsList', 'populationColsList', 'shapefileColsList'].forEach(id => document.getElementById(id).textContent = 'None');
+            
+            document.getElementById('mergeBtn').disabled = true;
+            document.getElementById('mergePreview').classList.add('hidden');
+            document.getElementById('uploadSection').classList.remove('hidden');
+            document.getElementById('columnSelection').classList.add('hidden');
+            document.getElementById('mergeResults').classList.add('hidden');
+            document.getElementById('alertContainer').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
